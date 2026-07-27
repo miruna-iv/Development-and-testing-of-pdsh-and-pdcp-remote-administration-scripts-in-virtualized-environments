@@ -1,9 +1,35 @@
-# Development-and-testing-of-pdsh-and-pdcp-remote-administration-scripts-in-virtualized-environments
+# pdsh & pdcp Remote Administration Utilities in Virtualized Environments
 
-This project was developed to more efficiently manage distributed systems, addressing the problem of manual command execution on multiple stations. The main objective was to implement the mypdsh and mypdcp utilities, inspired by the standard pdsh and pdcp tools. 
+An automated distributed systems management toolset inspired by standard `pdsh` and `pdcp` utilities. Designed to execute parallel commands and distribute files across multiple remote Linux nodes efficiently and securely within a KVM-virtualized testbed.
 
-An essential component of the project was to create a test environment that would mirror the reality of data centers. We chose not to limit ourselves to simple simulations, but to build a robust infrastructure using KVM (Kernel-based Virtual Machine) hypervisors on the host system. 
-The configuration process began with the manual installation of a "master" Linux virtual machine. To expand this machine into a cluster, we developed the duplicateVM.sh procedure, which automated the generation of nodes. A critical improvement implemented in this script is the use of the virt-customize utility, which intervenes directly in the disk image to set a unique --hostname for each machine before booting. 
-An essential stage in the development was the introduction of sanity checks. In both main scripts, we implemented code blocks that validate whether the working environment is ready: the existence of the ssh and scp commands in the system is checked (command -v), and if they are missing or if the user does not enter the mandatory arguments (the command to run or the files to copy), the script stops with an intuitive error message. 
-A critical goal was to achieve parallel execution. Instead of querying the nodes sequentially, we used the & operator to launch the SSH and SCP processes in the background. To ensure the integrity of the output and to prevent premature termination of the main script, we implemented the wait statement as a synchronization barrier. 
-From a security point of view, we introduced the parameter -o ConnectTimeout=5. This measure is vital in a distributed environment, as it forces the connection to be abandoned if a node does not respond within 5 seconds, preventing the entire cluster from being blocked due to an offline machine. We also optimized memory consumption (overhead) through the "pre-computing" technique: all text transformations (replacing %h and %u) are performed locally, before creating parallel processes, so that each thread receives the command ready for execution.
+---
+
+## Key Features
+
+- **Parallel Execution:** Uses background process spawning (`&`) and synchronization barriers (`wait`) to execute commands across cluster nodes concurrently rather than sequentially.
+- **Robust Environment Checks (Sanity Checking):** Pre-execution validation verifies necessary dependencies (`ssh`, `scp` via `command -v`) and validates mandatory CLI arguments, preventing execution failures early.
+- **Fail-Safe Security & Timeouts:** Integrated `-o ConnectTimeout=5` flags to prevent offline or unresponsive nodes from blocking the execution flow of the entire cluster.
+- **Pre-computed Processing:** Local string substitution (`%h`, `%u`) is performed prior to process creation to optimize memory overhead and avoid redundant local operations inside child threads.
+- **Automated Virtual Infrastructure Provisioning:** Includes `duplicateVM.sh`, an automated cluster expansion script utilizing `virt-customize` to inject unique hostnames directly into guest disk images before initial boot.
+
+---
+
+## Architecture & Infrastructure
+
+### Virtualization Setup (KVM Hypervisor)
+Instead of relying on basic container simulations, this project builds a robust, realistic data-center environment using **KVM (Kernel-based Virtual Machine)** on the host system:
+1. **Master Node:** A manually configured Linux virtual machine serving as the base template.
+2. **Automated Node Generation:** The `duplicateVM.sh` procedure automates guest disk cloning and configuration.
+3. **Disk Image Customization:** Directly modifies virtual disk images using `virt-customize` to assign distinct `--hostname` identifiers prior to first launch.
+
+```text
+       +-------------------------------------------------+
+       |                  Host System                    |
+       |                (KVM Hypervisor)                 |
+       +-----------------------+-------------------------+
+                               |
+            +------------------+------------------+
+            |                                     |
+    +-------v-------+                     +-------v-------+
+    |  Node 1 (VM)  |  <--- SSH/SCP --->  |  Node 2 (VM)  |
+    +---------------+   (Parallel Exec)   +---------------+
